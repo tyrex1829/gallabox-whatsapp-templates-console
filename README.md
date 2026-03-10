@@ -1,36 +1,72 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## Gallabox WhatsApp Template Console
 
-## Getting Started
+This app lists every WhatsApp template available in your Gallabox account, visualises the structure (components, variables, examples, attachments, buttons) and lets you trigger a template message to any recipient with a couple of clicks.
 
-First, run the development server:
+### Features
+
+- Live fetch of templates from `/devapi/accounts/:accountId/whatsappTemplates`
+- Categorised overview with status, language, category, last update and variable count
+- Detail panel that highlights placeholders, example values, footer variables and non-body components (headers, media, buttons)
+- Form-driven template message sender that posts to `/devapi/messages/whatsapp`
+- Graceful error handling (Gallabox validation errors surface in the UI)
+
+### Prerequisites
+
+- Node.js 18.17+ (the repo was bootstrapped with Node 22)
+- A Gallabox account with the API credentials (apiKey, apiSecret, accountId, channelId)
+
+### Environment variables
+
+Copy the example file and fill in your credentials:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+| Variable | Notes |
+| --- | --- |
+| `GALLABOX_BASE_URL` | Defaults to `https://server.gallabox.com`; change if you use a sandbox |
+| `GALLABOX_ACCOUNT_ID` | The account ID returned by Gallabox |
+| `GALLABOX_CHANNEL_ID` | The WhatsApp channel you want to send messages from |
+| `GALLABOX_API_KEY` / `GALLABOX_API_SECRET` | API credentials generated in Gallabox |
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+> `GALLABOX_API_SECRET` and `GALLABOX_API_KEY` are **server-only**. They stay on the server via Next.js server components and API routes: nothing sensitive is exposed to the browser bundle.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Local development
 
-## Learn More
+```bash
+npm install
+npm run dev
+# open http://localhost:3000
+```
 
-To learn more about Next.js, take a look at the following resources:
+The dashboard immediately calls Gallabox with your secrets and renders the template catalogue plus the sender form.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Production build
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm run build
+npm run start
+```
 
-## Deploy on Vercel
+### Template data model cheat-sheet
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `components`: Each template is composed of components (`BODY`, `HEADER`, `FOOTER`, `BUTTONS`). The dashboard exposes non-body components, media metadata and buttons (with their URLs or phone numbers).
+- `variables`: Body placeholders are returned as a simple string array in the order they appear inside the body component (`{{variable_name}}`). The example values that Gallabox stores (if any) are displayed next to each variable and tucked into input placeholders.
+- `footerVariables`: For button payloads (e.g. quick replies), Gallabox returns positional metadata: index, type and whether the slot is required. The UI surfaces that information so you know when a payload must be provided.
+- `bodyValues`: When sending a message, Gallabox expects a key/value object where keys match the `variables` names. The POST helper in `/api/messages` merges whatever you enter into that object and submits it alongside the template name/language.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Sending flow
+
+1. Pick any template from the catalogue or via the dropdown.
+2. Enter a full MSISDN (country code + number) for the recipient.
+3. Fill in every placeholder value. The API rejects messages when required variables are missing or blank—errors bubble up in the UI.
+4. Submit. Successful requests return the Gallabox message ID and show a green confirmation message.
+
+Gallabox responds with status `202` when the payload is accepted; downstream delivery updates can be inspected in the Gallabox message tracker.
+
+### Further improvements
+
+- Extend the sender form to support header variables, button parameters and media uploads.
+- Persist a send log locally (SQLite or Postgres) for audit trails.
+- Add authentication if exposing the dashboard beyond internal use.
